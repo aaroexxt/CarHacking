@@ -1,4 +1,3 @@
-//Reads all traffic on CAN0 and forwards it to CAN1 (and in the reverse direction) but modifies some frames first.
 // Required libraries
 #include "variant.h"
 #include <due_can.h>
@@ -41,46 +40,6 @@ bool requestedData = false;
 	//                 | add bytes | mode & 0x40 (ack) | PID |  value[0] |  value[1]  |   value[2]  |  value[3]  |   NA  |
 	//
 	//NOTE: for now we are going to assume the main ECU response 0x7E8
-
-
-
-void sendTesterPresent()
-{
-	Serial.println("sending tester present");
-	CAN_FRAME outgoing;
-	outgoing.id = ECU_ID;
-	outgoing.extended = false;
-	outgoing.priority = 4; //0-15 lower is higher priority
-	outgoing.length = 2;
-	
-	outgoing.data.byte[0] = 0x01;
-	outgoing.data.byte[1] = 0x3E;
-	Can0.sendFrame(outgoing);
-}
-void requestEngineData()
-{
-	
-	
-	Serial.println("sending engine request");
-	CAN_FRAME outgoing;
-	outgoing.id = ECU_ID;
-	outgoing.extended = false;
-	outgoing.priority = 4; //0-15 lower is higher priority
-	outgoing.length = 8;
-	
-	outgoing.data.byte[0] = 0x02;
-	outgoing.data.byte[1] = 0x01;
-	outgoing.data.byte[2] = 0x00;
-	outgoing.data.byte[3] = 0x55;
-	outgoing.data.byte[4] = 0x55;
-	outgoing.data.byte[5] = 0x55;
-	outgoing.data.byte[6] = 0x55;
-	outgoing.data.byte[7] = 0x55;
-
-	//from this message, with some reverse engineering bytes 4-7 are what we want
-
-	Can0.sendFrame(outgoing);
-}
 
 void printFrame(CAN_FRAME &frame) {
 	Serial.print("ID: 0x");
