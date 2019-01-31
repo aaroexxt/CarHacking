@@ -181,7 +181,7 @@ void changeState(int newState) {
 			changeState(16);
 
 		case 16:
-			sendCANPacket(ECU_ID, [0x02, 0x01, 0x0C, 0x55, 0x55, 0x55, 0x55, 0x55]); //ask for relative pedal position (exciting)
+			sendCANPacket(ECU_ID, [0x02, 0x01, 0x0C, 0x55, 0x55, 0x55, 0x55, 0x55]); //ask for engine rpm
 			nextState = 17;
 		case 17:
 			Serial.println("engine rpm");
@@ -190,7 +190,7 @@ void changeState(int newState) {
 			changeState(18);
 
 		case 18:
-			sendCANPacket(ECU_ID, [0x02, 0x01, 0x0D, 0x55, 0x55, 0x55, 0x55, 0x55]); //ask for relative pedal position (exciting)
+			sendCANPacket(ECU_ID, [0x02, 0x01, 0x0D, 0x55, 0x55, 0x55, 0x55, 0x55]); //ask for vehicle speed
 			nextState = 19;
 		case 19:
 			Serial.println("vehicle speed");
