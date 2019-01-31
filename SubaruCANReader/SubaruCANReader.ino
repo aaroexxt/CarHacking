@@ -138,13 +138,66 @@ void changeState(int newState) {
 			Serial.println(data[7]);
 			changeState(8);
 		case 8:
-			sendCANPacket(ECU_ID, [0x02, 0x01, 0x5A, 0x55, 0x55, 0x55, 0x55, 0x55]); //ask for relative pedal position (exciting)
+			sendCANPacket(ECU_ID, [0x02, 0x01, 0x60, 0x55, 0x55, 0x55, 0x55, 0x55]); //Send mode 1, pid 20, request supported PIDS for latter addresses
 			nextState = 9;
 		case 9:
+			Serial.println("bytes 4-7, supported OBD pids 0x60"); //print supported PIDs
+			Serial.print(data[4]);
+			Serial.print(data[5]);
+			Serial.print(data[6]);
+			Serial.println(data[7]);
+			changeState(10);
+		case 10:
+			sendCANPacket(ECU_ID, [0x02, 0x01, 0x80, 0x55, 0x55, 0x55, 0x55, 0x55]); //Send mode 1, pid 20, request supported PIDS for latter addresses
+			nextState = 9;
+		case 11:
+			Serial.println("bytes 4-7, supported OBD pids 0x80"); //print supported PIDs
+			Serial.print(data[4]);
+			Serial.print(data[5]);
+			Serial.print(data[6]);
+			Serial.println(data[7]);
+			changeState(12);
+		case 12:
+			Serial.println("getting odo data")
+			sendCANPacket(ECU_ID, [0x02, 0x01, 0xA6, 0x55, 0x55, 0x55, 0x55, 0x55]); //ask for relative pedal position (exciting)
+			nextState = 11;
+		case 13:
+			Serial.println("odometer data");
+			Serial.print(data[4]);
+			Serial.print(data[5]);
+			Serial.print(data[6]);
+			Serial.println(data[7]);
+			delay(5000);
+			changeState(14);
+
+		//ACTUAL PID CHECKER
+		case 14:
+			sendCANPacket(ECU_ID, [0x02, 0x01, 0x5A, 0x55, 0x55, 0x55, 0x55, 0x55]); //ask for relative pedal position (exciting)
+			nextState = 15;
+		case 15:
 			Serial.println("acc pedal position");
-			Serial.println((100/255)*data[4]);
-			delay(100);
-			changeState(8);
+			Serial.print((100/255)*data[4]);
+			Serial.println("%");
+			changeState(16);
+
+		case 16:
+			sendCANPacket(ECU_ID, [0x02, 0x01, 0x0C, 0x55, 0x55, 0x55, 0x55, 0x55]); //ask for relative pedal position (exciting)
+			nextState = 17;
+		case 17:
+			Serial.println("engine rpm");
+			Serial.print(((256*data[4])+data[5])/4);
+			Serial.println("rpm");
+			changeState(18);
+
+		case 18:
+			sendCANPacket(ECU_ID, [0x02, 0x01, 0x0D, 0x55, 0x55, 0x55, 0x55, 0x55]); //ask for relative pedal position (exciting)
+			nextState = 19;
+		case 19:
+			Serial.println("vehicle speed");
+			Serial.print(data[4]);
+			Serial.println("km/h");
+			delay(500);
+			changeState(14);
 	}
 }
 
