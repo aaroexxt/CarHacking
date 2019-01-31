@@ -109,9 +109,6 @@ void sendCANPacket(int ID, uint16_t data[]) {
 	}
 }
 
-bool canData() {
-}
-
 bool getCanData(int (*data)[8]) {
 	if (Can0.available() <= 0) {
 		return false;
@@ -133,39 +130,71 @@ bool getCanData(int (*data)[8]) {
 	return true;
 }
 
-void changeState(int newState, bool wait) {
+void changeState(int newState) {
 	Serial.print("Changing state to ");
 	Serial.println(newState);
 
 	currentState = newState;
+	nextState = -1;
 	
 	int data[8];
 	bool isDataPresent = getCanData(&data); //does double duty of fetching data and setting bool flag
-	if (wait && !isDataPresent) {
+	if (!isDataPresent) {
 		Serial.println("no response from CAN bus, waiting and trying again...");
-		delay(100);
-		changeState(newState); //call it again because hopefully we got a response
 	}
 
 
 	switch(newState) {
 		case 1:
-			sendCANPacket()
-			
+			sendCANPacket(ECU_ID, [0x01, 0x3E]); //send tester present signal
+			nextState = 2; //when data is recieved will change state to 2
+		case 2:
+			sendCANPacket(ECU_ID, [0x02, 0x01, 0x00, 0x55, 0x55, 0x55, 0x55, 0x55]); //send mode 1 pid 0, request supported modes
+			nextState = 3;
+		case 3:
+			Serial.println("bytes 4-7, supported OBD pids 0x00"); //print supported PIDs
+			Serial.print(data[4]);
+			Serial.print(data[5]);
+			Serial.print(data[6]);
+			Serial.println(data[7]);
+			changeState(4);
+		case 4:
+			sendCANPacket(ECU_ID, [0x02, 0x01, 0x20, 0x55, 0x55, 0x55, 0x55, 0x55]); //Send mode 1, pid 20, request supported PIDS for latter addresses
+			nextState = 5;
+		case 5:
+			Serial.println("bytes 4-7, supported OBD pids 0x20"); //print supported PIDs
+			Serial.print(data[4]);
+			Serial.print(data[5]);
+			Serial.print(data[6]);
+			Serial.println(data[7]);
+			changeState(6);
+		case 6:
+			sendCANPacket(ECU_ID, [0x02, 0x01, 0x40, 0x55, 0x55, 0x55, 0x55, 0x55]); //Send mode 1, pid 20, request supported PIDS for latter addresses
+			nextState = 7;
+		case 7:
+			Serial.println("bytes 4-7, supported OBD pids 0x40"); //print supported PIDs
+			Serial.print(data[4]);
+			Serial.print(data[5]);
+			Serial.print(data[6]);
+			Serial.println(data[7]);
+			changeState(8);
+		case 8:
+			sendCANPacket(ECU_ID, [0x02, 0x01, 0x5A, 0x55, 0x55, 0x55, 0x55, 0x55]); //ask for relative pedal position (exciting)
+			nextState = 9;
+		case 9:
+			Serial.println("acc pedal position");
+			Serial.println((100/255)*data[4]);
+			delay(100);
+			changeState(8);
 	}
 }
 
 void loop(){
-	CAN_FRAME incoming;
 
 	if (Can0.available() > 0) {
-		Serial.println("WE RECIEVED SOMETHING HOLY SHIT");
-		Can0.read(incoming);
-		printFrame(incoming);
-		 
-		if (!requestedData) {
-				requestEngineData();
-				requestedData = true;
+		Serial.println("rcv in loop");
+		if (nextState > 0) {
+			changeState(nextState);
 		}
 	}
 	
