@@ -85,23 +85,26 @@ void sendCANPacket(int ID, uint16_t data[]) {
   	Can0.sendFrame(outgoing);
 }
 
-bool getCanData(byte (*data)[8]) {
+bool canDataAvailable() {
 	if (Can0.available() <= 0) {
 		return false;
 	}
+	return true;
+}
 
+uint8_t* getCanData() {
 	CAN_FRAME incoming;
 	Can0.read(incoming);
 	if (debugMode || true) {
 		printFrame(incoming);
 	}
 
-	//so, there's some C++ fuckery here. basically first we have to set up a new int array with the actual bytes from CAN, converted
+	uint8_t* realData = new uint8_t[2];
+	for (int i=0; i<2; i++) {
+		realData[i] = incoming.data.bytes[i];
+	}
 
-	byte (*pointerizedData)[8] = &incoming.data.bytes; //then, we have to turn it into a pointer so the types are compatible
-	data = pointerizedData; //and then we can assign the types
-
-	return true;
+	return realData; //returns pointer
 }
 
 
@@ -120,10 +123,10 @@ void changeStateReal(int newState, bool allowNoData) {
 	}
 
 	currentState = newState;
-	
-	byte data[8];
-	bool isDataPresent = getCanData(&data); //does double duty of fetching data and setting bool flag
-	for (int i=0; i<(sizeof(data)/sizeof(uint16_t)); i++) {
+
+	bool dataPresent = canDataAvailable();
+	uint8_t* data = getCanData(); //returns pointer to original data array
+	for (int i=0; i<(sizeof(data)/sizeof(uint8_t)); i++) {
 		Serial.print("INCOMING_CHGS ");
 		Serial.println(data[i]);
 	}
