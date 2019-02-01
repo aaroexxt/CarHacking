@@ -18,8 +18,21 @@ static unsigned long testerPresentLast = 0;
 static unsigned long requestDataLast = 0;
 
 int currentState = 0;
+int nextState = 0;
 
-bool requestedData = false;
+bool noDataYet = false;
+
+#define NoDataYetDelay 1000
+
+//below are the CAN definitions for the various operations
+uint16_t OBDVehicleSpeed[8] = {0x02, 0x01, 0x0D, 0x55, 0x55, 0x55, 0x55, 0x55};
+uint16_t OBDEngineRPM[8] = {0x02, 0x01, 0x0C, 0x55, 0x55, 0x55, 0x55, 0x55};
+uint16_t OBDPedalPosition[8] = {0x02, 0x01, 0x5A, 0x55, 0x55, 0x55, 0x55, 0x55};
+uint16_t OBDOdometerData[8] = {0x02, 0x01, 0xA6, 0x55, 0x55, 0x55, 0x55, 0x55};
+
+uint16_t OBDSupportedPIDS[8] = {0x02, 0x01, 0x00, 0x55, 0x55, 0x55, 0x55, 0x55};
+uint16_t OBDTesterPresent[2] = {0x01, 0x3E};
+
 
 	//********** TX REQUEST FRAME ****************
 	//where OBD PID response is CANID: BYTE_0, BYTE_1, BYTE_2, BYTE_3, BYTE_4, BYTE_5, BYTE_6, BYTE_7 
@@ -66,6 +79,8 @@ void sendCANPacket(int ID, uint16_t data[]) {
 	for (int i=0; i<len; i++) {
 		outgoing.data.byte[i] = data[i];
 	}
+
+  	Can0.sendFrame(outgoing);
 }
 
 bool getCanData(int (*data)[8]) {
@@ -89,115 +104,186 @@ bool getCanData(int (*data)[8]) {
 	return true;
 }
 
+
+void changeState(int newState, bool allowNoData) { //these 2 helper functions basically make it so I can use whatever syntax I want
+	changeStateReal(newState, allowNoData);
+}
+
 void changeState(int newState) {
+	changeStateReal(newState, false);
+}
+
+void changeStateReal(int newState, bool allowNoData) {
 	Serial.print("Changing state to ");
 	Serial.println(newState);
 
 	currentState = newState;
-	nextState = -1;
 	
 	int data[8];
 	bool isDataPresent = getCanData(&data); //does double duty of fetching data and setting bool flag
-	if (!isDataPresent) {
+	if (!isDataPresent && !allowNoData) {
 		Serial.println("no response from CAN bus, waiting and trying again...");
+		delay(NoDataYetDelay);
+		noDataYet = true; //set flag to change again
+    	return;
 	}
+	nextState = -1;
 
 
 	switch(newState) {
-		case 1:
-			sendCANPacket(ECU_ID, [0x01, 0x3E]); //send tester present signal
+		case 1: {
+			sendCANPacket(ECU_ID, OBDTesterPresent); //send tester present signal
 			nextState = 2; //when data is recieved will change state to 2
-		case 2:
-			sendCANPacket(ECU_ID, [0x02, 0x01, 0x00, 0x55, 0x55, 0x55, 0x55, 0x55]); //send mode 1 pid 0, request supported modes
+			break;
+		}
+
+		case 2: {
+			OBDSupportedPIDS[2] = 0x00; //set proper request byte
+			sendCANPacket(ECU_ID, OBDSupportedPIDS); //send mode 1 pid 0, request supported modes
 			nextState = 3;
-		case 3:
+			break;
+		}
+
+		case 3: {
 			Serial.println("bytes 4-7, supported OBD pids 0x00"); //print supported PIDs
 			Serial.print(data[4]);
 			Serial.print(data[5]);
 			Serial.print(data[6]);
 			Serial.println(data[7]);
-			changeState(4);
-		case 4:
-			sendCANPacket(ECU_ID, [0x02, 0x01, 0x20, 0x55, 0x55, 0x55, 0x55, 0x55]); //Send mode 1, pid 20, request supported PIDS for latter addresses
+
+			changeState(4, true);
+			break;
+		}
+
+		case 4: {
+			OBDSupportedPIDS[2] = 0x20; //set proper request byte
+			sendCANPacket(ECU_ID, OBDSupportedPIDS); //Send mode 1, pid 20, request supported PIDS for latter addresses
 			nextState = 5;
-		case 5:
+			break;
+		}
+
+		case 5: {
 			Serial.println("bytes 4-7, supported OBD pids 0x20"); //print supported PIDs
 			Serial.print(data[4]);
 			Serial.print(data[5]);
 			Serial.print(data[6]);
 			Serial.println(data[7]);
-			changeState(6);
-		case 6:
-			sendCANPacket(ECU_ID, [0x02, 0x01, 0x40, 0x55, 0x55, 0x55, 0x55, 0x55]); //Send mode 1, pid 20, request supported PIDS for latter addresses
+			changeState(6, true);
+			break;
+		}
+
+		case 6: {
+			OBDSupportedPIDS[2] = 0x40; //set proper request byte
+			sendCANPacket(ECU_ID, OBDSupportedPIDS); //Send mode 1, pid 40, request supported PIDS for latter addresses
 			nextState = 7;
-		case 7:
+			break;
+		}
+
+		case 7: {
 			Serial.println("bytes 4-7, supported OBD pids 0x40"); //print supported PIDs
 			Serial.print(data[4]);
 			Serial.print(data[5]);
 			Serial.print(data[6]);
 			Serial.println(data[7]);
-			changeState(8);
-		case 8:
-			sendCANPacket(ECU_ID, [0x02, 0x01, 0x60, 0x55, 0x55, 0x55, 0x55, 0x55]); //Send mode 1, pid 20, request supported PIDS for latter addresses
+			changeState(8, true);
+			break;
+		}
+
+		case 8: {
+			OBDSupportedPIDS[2] = 0x60; //set proper request byte
+			sendCANPacket(ECU_ID, OBDSupportedPIDS); //Send mode 1, pid 60, request supported PIDS for latter addresses
 			nextState = 9;
-		case 9:
+			break;
+		}
+
+		case 9: {
 			Serial.println("bytes 4-7, supported OBD pids 0x60"); //print supported PIDs
 			Serial.print(data[4]);
 			Serial.print(data[5]);
 			Serial.print(data[6]);
 			Serial.println(data[7]);
-			changeState(10);
-		case 10:
-			sendCANPacket(ECU_ID, [0x02, 0x01, 0x80, 0x55, 0x55, 0x55, 0x55, 0x55]); //Send mode 1, pid 20, request supported PIDS for latter addresses
-			nextState = 9;
-		case 11:
+			changeState(10, true);
+			break;
+		}
+
+		case 10: {
+			OBDSupportedPIDS[2] = 0x80; //set proper request byte
+			sendCANPacket(ECU_ID, OBDSupportedPIDS); //Send mode 1, pid 80, request supported PIDS for latter addresses
+			nextState = 11;
+			break;
+		}
+
+		case 11: {
 			Serial.println("bytes 4-7, supported OBD pids 0x80"); //print supported PIDs
 			Serial.print(data[4]);
 			Serial.print(data[5]);
 			Serial.print(data[6]);
 			Serial.println(data[7]);
-			changeState(12);
-		case 12:
-			Serial.println("getting odo data")
-			sendCANPacket(ECU_ID, [0x02, 0x01, 0xA6, 0x55, 0x55, 0x55, 0x55, 0x55]); //ask for relative pedal position (exciting)
-			nextState = 11;
-		case 13:
+			changeState(12, true);
+			break;
+		}
+
+		case 12: {
+			Serial.println("getting odo data");
+			sendCANPacket(ECU_ID, OBDOdometerData); //ask for odometer data
+			nextState = 13;
+			break;
+		}
+
+		case 13: {
 			Serial.println("odometer data");
 			Serial.print(data[4]);
 			Serial.print(data[5]);
 			Serial.print(data[6]);
 			Serial.println(data[7]);
 			delay(5000);
-			changeState(14);
+			changeState(14, true);
+			break;
+		}
 
 		//ACTUAL PID CHECKER
-		case 14:
-			sendCANPacket(ECU_ID, [0x02, 0x01, 0x5A, 0x55, 0x55, 0x55, 0x55, 0x55]); //ask for relative pedal position (exciting)
+		case 14: {
+			sendCANPacket(ECU_ID, OBDPedalPosition); //ask for relative pedal position (exciting)
 			nextState = 15;
-		case 15:
+			break;
+		}
+
+		case 15: {
 			Serial.println("acc pedal position");
 			Serial.print((100/255)*data[4]);
 			Serial.println("%");
-			changeState(16);
+			changeState(16, true);
+			break;
+		}
 
-		case 16:
-			sendCANPacket(ECU_ID, [0x02, 0x01, 0x0C, 0x55, 0x55, 0x55, 0x55, 0x55]); //ask for engine rpm
+		case 16: {
+			sendCANPacket(ECU_ID, OBDEngineRPM); //ask for engine rpm
 			nextState = 17;
-		case 17:
+			break;
+		}
+
+		case 17: {
 			Serial.println("engine rpm");
 			Serial.print(((256*data[4])+data[5])/4);
 			Serial.println("rpm");
-			changeState(18);
+			changeState(18, true);
+			break;
+		}
 
-		case 18:
-			sendCANPacket(ECU_ID, [0x02, 0x01, 0x0D, 0x55, 0x55, 0x55, 0x55, 0x55]); //ask for vehicle speed
+		case 18: {
+			sendCANPacket(ECU_ID, OBDVehicleSpeed); //ask for vehicle speed
 			nextState = 19;
-		case 19:
+			break;
+		}
+
+		case 19: {
 			Serial.println("vehicle speed");
 			Serial.print(data[4]);
 			Serial.println("km/h");
 			delay(500);
-			changeState(14);
+			changeState(14, true);
+			break;
+		}
 	}
 }
 
@@ -207,6 +293,12 @@ void loop(){
 		Serial.println("rcv in loop");
 		if (nextState > 0) {
 			changeState(nextState);
+		}
+	} else if (noDataYet) { //retry sending message
+		if (nextState > 0) {
+			changeState(nextState);
+		} else {
+			changeState(currentState);
 		}
 	}
 	
@@ -232,8 +324,8 @@ void setup()
 	}
 
 	Serial.println("waiting to send data for 5000ms");
-	delay(5000);
-	changeState(1);
+	delay(3000);
+	changeState(1, true);
 }
 
 
