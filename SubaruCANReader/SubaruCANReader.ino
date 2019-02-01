@@ -22,6 +22,8 @@ int nextState = 0;
 
 bool noDataYet = false;
 
+bool debugMode = false;
+
 #define NoDataYetDelay 1000
 
 //below are the CAN definitions for the various operations
@@ -90,7 +92,9 @@ bool getCanData(int (*data)[8]) {
 
 	CAN_FRAME incoming;
 	Can0.read(incoming);
-	printFrame(incoming);
+	if (debugMode) {
+		printFrame(incoming);
+	}
 
 	int realData[8];
 	for (int count = 0; count < incoming.length; count++) {
@@ -114,15 +118,19 @@ void changeState(int newState) {
 }
 
 void changeStateReal(int newState, bool allowNoData) {
-	Serial.print("Changing state to ");
-	Serial.println(newState);
+	if (debugMode) {
+		Serial.print("Changing state to ");
+		Serial.println(newState);
+	}
 
 	currentState = newState;
 	
 	int data[8];
 	bool isDataPresent = getCanData(&data); //does double duty of fetching data and setting bool flag
 	if (!isDataPresent && !allowNoData) {
-		Serial.println("no response from CAN bus, waiting and trying again...");
+		if (debugMode) {
+			Serial.println("no response from CAN bus, waiting and trying again...");
+		}
 		delay(NoDataYetDelay);
 		noDataYet = true; //set flag to change again
     	return;
@@ -252,7 +260,7 @@ void changeStateReal(int newState, bool allowNoData) {
 			Serial.println("acc pedal position");
 			Serial.print((100/255)*data[4]);
 			Serial.println("%");
-			changeState(16, true);
+			changeState(16, true); //loop it here
 			break;
 		}
 
@@ -263,10 +271,14 @@ void changeStateReal(int newState, bool allowNoData) {
 		}
 
 		case 17: {
-			Serial.println("engine rpm");
-			Serial.print(((256*data[4])+data[5])/4);
-			Serial.println("rpm");
-			changeState(18, true);
+			long rpm = ((256*data[4])+data[5])/4;
+
+			if (rpm > 10) {
+				Serial.println("engine rpm");
+				Serial.print(rpm);
+				Serial.println("rpm");
+			}
+			changeState(16, true);
 			break;
 		}
 
@@ -290,7 +302,6 @@ void changeStateReal(int newState, bool allowNoData) {
 void loop(){
 
 	if (Can0.available() > 0) {
-		Serial.println("rcv in loop");
 		if (nextState > 0) {
 			changeState(nextState);
 		}
