@@ -92,16 +92,16 @@ bool canDataAvailable() {
 	return true;
 }
 
-uint8_t* getCanData() {
+int* getCanData() {
 	CAN_FRAME incoming;
 	Can0.read(incoming);
 	if (debugMode || true) {
 		printFrame(incoming);
 	}
 
-	uint8_t* realData = new uint8_t[2];
-	for (int i=0; i<2; i++) {
-		realData[i] = incoming.data.bytes[i];
+	int* realData = new int[8];
+	for (int i=0; i<8; i++) {
+		realData[i] = int(incoming.data.bytes[i]);
 	}
 
 	return realData; //returns pointer
@@ -125,8 +125,8 @@ void changeStateReal(int newState, bool allowNoData) {
 	currentState = newState;
 
 	bool dataPresent = canDataAvailable();
-	uint8_t* data = getCanData(); //returns pointer to original data array
-	for (int i=0; i<(sizeof(data)/sizeof(uint8_t)); i++) {
+	int* data = getCanData(); //returns pointer to original data array
+	for (int i=0; i<(sizeof(data)/sizeof(int)); i++) {
 		Serial.print("INCOMING_CHGS ");
 		Serial.println(data[i]);
 	}
