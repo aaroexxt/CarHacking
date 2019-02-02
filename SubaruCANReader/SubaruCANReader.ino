@@ -107,6 +107,31 @@ int* getCanData() {
 	return realData; //returns pointer
 }
 
+int* intToBinary( int integer ) {
+	char binary[9] = {0};
+	integer += 128; //Adding 128 so that there will always be 8 digits in the string
+	itoa(integer, binary, 2); //Convert integer to a string using base 2 and save it in the array named binary
+	char* binString = binary + 1; //and we're in string form, remove highest bit
+	
+	int len = 7;//(sizeof(binString)/sizeof(char));
+
+	int* realBin = new int[len];
+	for (int i=0; i<len; i++) {
+		realBin[i] = (int(binString[i])-48);
+	}
+
+	return realBin;
+}
+
+String intToString( int integer) {
+	char binary[9] = {0};
+	integer += 128; //Adding 128 so that there will always be 8 digits in the string
+	itoa(integer, binary, 2); //Convert integer to a string using base 2 and save it in the array named binary
+	char* binString = binary + 1; //and we're in string form, remove highest bit
+
+	return String(binString);
+}
+
 
 void changeState(int newState, bool allowNoData) { //these 2 helper functions basically make it so I can use whatever syntax I want
 	changeStateReal(newState, allowNoData);
@@ -130,7 +155,7 @@ void changeStateReal(int newState, bool allowNoData) {
 		Serial.print("INCOMING_CHGS ");
 		Serial.println(data[i]);
 	}
-	if (!isDataPresent && !allowNoData) {
+	if (!dataPresent && !allowNoData) {
 		if (debugMode) {
 			Serial.println("no response from CAN bus, waiting and trying again...");
 		}
@@ -261,7 +286,7 @@ void changeStateReal(int newState, bool allowNoData) {
 
 		case 15: {
 			Serial.println("acc pedal position");
-			Serial.print((100/255)*data[4], HEX);
+			Serial.print((100/255)*data[4], DEC);
 			Serial.println("%");
 			changeState(16, true); //loop it here
 			break;
@@ -337,8 +362,12 @@ void setup()
 	Can0.setRXFilter(filter, 0, 0, false);
 	}
 
+	digitalWrite(DS6, HIGH);
+
 	Serial.println("waiting to send data for 5000ms");
 	delay(3000);
+	digitalWrite(DS6, LOW);
+
 	changeState(1, true);
 }
 
