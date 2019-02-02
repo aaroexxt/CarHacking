@@ -75,7 +75,7 @@ void sendCANPacket(int ID, uint16_t data[]) {
 	outgoing.extended = false;
 	outgoing.priority = 4;
 
-	int len = sizeof(data)/sizeof(uint16_t); //set proper length
+	int len = 8;//sizeof(data)/sizeof(uint16_t); //set proper length
 	outgoing.length = len;
 
 	for (int i=0; i<len; i++) {
@@ -92,15 +92,22 @@ bool canDataAvailable() {
 	return true;
 }
 
+int* getCanData(int dataLength) {
+	return getCanDataReal(dataLength);
+}
 int* getCanData() {
+	return getCanDataReal(8);
+}
+
+int* getCanData(int dataLength) {
 	CAN_FRAME incoming;
 	Can0.read(incoming);
 	if (debugMode || true) {
 		printFrame(incoming);
 	}
 
-	int* realData = new int[8];
-	for (int i=0; i<8; i++) {
+	int* realData = new int[dataLength];
+	for (int i=0; i<dataLength; i++) {
 		realData[i] = int(incoming.data.bytes[i]);
 	}
 
@@ -132,6 +139,15 @@ String intToString( int integer) {
 	return String(binString);
 }
 
+void printSupportedPIDS( int* data ) {
+	for (int i=4; i<7; i++) {
+		Serial.print("bit ");
+		Serial.print(i);
+		Serial.print(", bin ");
+		Serial.println(intToString(data[i]));
+	}
+}
+
 
 void changeState(int newState, bool allowNoData) { //these 2 helper functions basically make it so I can use whatever syntax I want
 	changeStateReal(newState, allowNoData);
@@ -151,10 +167,6 @@ void changeStateReal(int newState, bool allowNoData) {
 
 	bool dataPresent = canDataAvailable();
 	int* data = getCanData(); //returns pointer to original data array
-	for (int i=0; i<(sizeof(data)/sizeof(int)); i++) {
-		Serial.print("INCOMING_CHGS ");
-		Serial.println(data[i]);
-	}
 	if (!dataPresent && !allowNoData) {
 		if (debugMode) {
 			Serial.println("no response from CAN bus, waiting and trying again...");
@@ -182,10 +194,7 @@ void changeStateReal(int newState, bool allowNoData) {
 
 		case 3: {
 			Serial.println("bytes 4-7, supported OBD pids 0x00"); //print supported PIDs
-			Serial.println(data[3], BIN);
-			Serial.println(data[4], BIN);
-			Serial.println(data[5], BIN);
-			Serial.println(data[6], BIN);
+			printSupportedPIDS(data);
 
 			changeState(4, true);
 			break;
@@ -200,10 +209,8 @@ void changeStateReal(int newState, bool allowNoData) {
 
 		case 5: {
 			Serial.println("bytes 4-7, supported OBD pids 0x20"); //print supported PIDs
-			Serial.println(data[3], BIN);
-			Serial.println(data[4], BIN);
-			Serial.println(data[5], BIN);
-			Serial.println(data[6], BIN);
+			printSupportedPIDS(data);
+
 			changeState(6, true);
 			break;
 		}
@@ -217,10 +224,8 @@ void changeStateReal(int newState, bool allowNoData) {
 
 		case 7: {
 			Serial.println("bytes 4-7, supported OBD pids 0x40"); //print supported PIDs
-			Serial.println(data[3], BIN);
-			Serial.println(data[4], BIN);
-			Serial.println(data[5], BIN);
-			Serial.println(data[6], BIN);
+			printSupportedPIDS(data);
+
 			changeState(8, true);
 			break;
 		}
@@ -234,15 +239,13 @@ void changeStateReal(int newState, bool allowNoData) {
 
 		case 9: {
 			Serial.println("bytes 4-7, supported OBD pids 0x60"); //print supported PIDs
-			Serial.println(data[3], BIN);
-			Serial.println(data[4], BIN);
-			Serial.println(data[5], BIN);
-			Serial.println(data[6], BIN);
-			changeState(10, true);
+			printSupportedPIDS(data);
+
+			changeState(14, true);
 			break;
 		}
 
-		case 10: {
+		/*case 10: {
 			OBDSupportedPIDS[2] = 0x80; //set proper request byte
 			sendCANPacket(ECU_ID, OBDSupportedPIDS); //Send mode 1, pid 80, request supported PIDS for latter addresses
 			nextState = 11;
@@ -251,10 +254,8 @@ void changeStateReal(int newState, bool allowNoData) {
 
 		case 11: {
 			Serial.println("bytes 4-7, supported OBD pids 0x80"); //print supported PIDs
-			Serial.println(data[3], BIN);
-			Serial.println(data[4], BIN);
-			Serial.println(data[5], BIN);
-			Serial.println(data[6], BIN);
+			printSupportedPIDS(data);
+
 			changeState(12, true);
 			break;
 		}
@@ -268,14 +269,14 @@ void changeStateReal(int newState, bool allowNoData) {
 
 		case 13: {
 			Serial.println("odometer data");
-			Serial.print(data[4], HEX);
-			Serial.print(data[5], HEX);
-			Serial.print(data[6], HEX);
-			Serial.println(data[7], HEX);
+			Serial.print(data[4]);
+			Serial.print(data[5]);
+			Serial.print(data[6]);
+			Serial.println(data[7]);
 			delay(5000);
 			changeState(14, true);
 			break;
-		}
+		}*/
 
 		//ACTUAL PID CHECKER
 		case 14: {
@@ -286,9 +287,11 @@ void changeStateReal(int newState, bool allowNoData) {
 
 		case 15: {
 			Serial.println("acc pedal position");
-			Serial.print((100/255)*data[4], DEC);
+			float pos = 0.8474 * (float)data[3];
+			Serial.print(pos);
 			Serial.println("%");
-			changeState(16, true); //loop it here
+			delay(500);
+			changeState(14, true); //loop it here
 			break;
 		}
 
@@ -352,6 +355,10 @@ void setup()
 	Can0.begin(CAN_BPS_500K);
 
 	//setup mailboxes
+
+	Can0.watchFor(ECU_RESPONSE_ID1, ECU_RESPONSE_ID2);
+	//ALLOWALL FILTER
+	/*
 	int filter;
 	//extended
 	for (filter = 0; filter < 3; filter++) {
@@ -360,7 +367,7 @@ void setup()
 	//standard
 	for (int filter = 3; filter < 7; filter++) {
 	Can0.setRXFilter(filter, 0, 0, false);
-	}
+	}*/
 
 	digitalWrite(DS6, HIGH);
 
