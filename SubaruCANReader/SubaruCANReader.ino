@@ -70,15 +70,23 @@ void printFrame(CAN_FRAME &frame) {
 }
 
 void sendCANPacket(int ID, uint16_t data[]) {
+	sendCANPacketReal(ID, data, 8);
+}
+
+void sendCANPacket(int ID, uint16_t data[], int bytesLen) {
+	sendCANPacketReal(ID, data, bytesLen);
+}
+
+void sendCANPacketReal(int ID, uint16_t data[], int bytesLen) {
 	CAN_FRAME outgoing;
 	outgoing.id = ID;
 	outgoing.extended = false;
 	outgoing.priority = 4;
 
-	int len = 8;//sizeof(data)/sizeof(uint16_t); //set proper length
-	outgoing.length = len;
+	//sizeof(data)/sizeof(uint16_t); //set proper length
+	outgoing.length = bytesLen;
 
-	for (int i=0; i<len; i++) {
+	for (int i=0; i<bytesLen; i++) {
 		outgoing.data.byte[i] = data[i];
 	}
 
