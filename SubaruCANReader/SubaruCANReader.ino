@@ -5,7 +5,7 @@
 //Leave defined if you use native port, comment if using programming port
 #define Serial SerialUSB
 
-#define ECU_ID 0x07E0 //also 0x07E1
+#define ECU_ID 0x07DF //also 0x07E0 and 0x07E1 are more specific
 //the above is the ECU bus ID
 
 #define ECU_RESPONSE_ID1 0x07E8
