@@ -387,3 +387,40 @@ void setup()
 }
 
 
+/*
+need 2 add
+float diagnostic_decode_obd2_pid(const DiagnosticResponse* response) {
+    // handles on the single number values, not the bit encoded ones
+    switch(response->pid) {
+        case 0xa:
+            return response->payload[0] * 3;
+        case 0xc:
+            return (response->payload[0] * 256 + response->payload[1]) / 4.0;
+        case 0xd:
+        case 0x33:
+        case 0xb:
+            return response->payload[0];
+        case 0x10:
+            return (response->payload[0] * 256 + response->payload[1]) / 100.0;
+        case 0x11:
+        case 0x2f:
+        case 0x45:
+        case 0x4c:
+        case 0x52:
+        case 0x5a:
+        case 0x4:
+            return response->payload[0] * 100.0 / 255.0;
+        case 0x46:
+        case 0x5c:
+        case 0xf:
+        case 0x5:
+            return response->payload[0] - 40;
+        case 0x62:
+            return response->payload[0] - 125;
+        default:
+            return diagnostic_payload_to_integer(response);
+    }
+}
+*/
+
+
