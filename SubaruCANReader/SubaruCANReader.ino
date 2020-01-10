@@ -107,7 +107,7 @@ int* getCanData() {
 	return getCanDataReal(8);
 }
 
-int* getCanData(int dataLength) {
+int* getCanDataReal(int dataLength) {
 	CAN_FRAME incoming;
 	Can0.read(incoming);
 	if (debugMode || true) {
