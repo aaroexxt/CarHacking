@@ -22,18 +22,18 @@ int nextState = 0;
 
 bool noDataYet = false;
 
-bool debugMode = false;
+bool debugMode = true;
 
 #define NoDataYetDelay 1000
 
 //below are the CAN definitions for the various operations
-uint16_t OBDVehicleSpeed[8] = {0x02, 0x01, 0x0D, 0x55, 0x55, 0x55, 0x55, 0x55};
-uint16_t OBDEngineRPM[8] = {0x02, 0x01, 0x0C, 0x55, 0x55, 0x55, 0x55, 0x55};
-uint16_t OBDPedalPosition[8] = {0x02, 0x01, 0x5A, 0x55, 0x55, 0x55, 0x55, 0x55};
-uint16_t OBDOdometerData[8] = {0x02, 0x01, 0xA6, 0x55, 0x55, 0x55, 0x55, 0x55};
+uint16_t OBDVehicleSpeed[3] = {0x02, 0x01, 0x0D};
+uint16_t OBDEngineRPM[3] = {0x02, 0x01, 0x0C};
+uint16_t OBDPedalPosition[3] = {0x02, 0x01, 0x5A};
+uint16_t OBDOdometerData[3] = {0x02, 0x01, 0xA6};
 
-uint16_t OBDSupportedPIDS[8] = {0x02, 0x01, 0x00, 0x55, 0x55, 0x55, 0x55, 0x55};
-uint16_t OBDTesterPresent[2] = {0x01, 0x3E};
+uint16_t OBDSupportedPIDS[3] = {0x02, 0x01, 0x00};
+uint16_t OBDTesterPresent[2] = {0x02, 0x3E};
 
 
 	//********** TX REQUEST FRAME ****************
@@ -70,7 +70,7 @@ void printFrame(CAN_FRAME &frame) {
 }
 
 void sendCANPacket(int ID, uint16_t data[]) {
-	sendCANPacketReal(ID, data, 8);
+	sendCANPacketReal(ID, data, 3);
 }
 
 void sendCANPacket(int ID, uint16_t data[], int bytesLen) {
@@ -80,14 +80,18 @@ void sendCANPacket(int ID, uint16_t data[], int bytesLen) {
 void sendCANPacketReal(int ID, uint16_t data[], int bytesLen) {
 	CAN_FRAME outgoing;
 	outgoing.id = ID;
-	outgoing.extended = false;
+	outgoing.extended = 0;
 	outgoing.priority = 4;
 
 	//sizeof(data)/sizeof(uint16_t); //set proper length
-	outgoing.length = bytesLen;
+	outgoing.length = 8;
+
+	for (int i=0; i<8; i++) {
+		outgoing.data.bytes[i] = 0x55; //or 0xAA
+	}
 
 	for (int i=0; i<bytesLen; i++) {
-		outgoing.data.byte[i] = data[i];
+		outgoing.data.bytes[i] = data[i];
 	}
 
   	Can0.sendFrame(outgoing);
@@ -339,12 +343,17 @@ void changeStateReal(int newState, bool allowNoData) {
 }
 
 void loop(){
+	long currentTime = millis();
+	if (currentTime - testerPresentLast > testerPresentWait) {
+		testerPresentLast = currentTime;
+		sendCANPacket(ECU_ID, OBDTesterPresent, 2);
+	}
 
 	if (Can0.available() > 0) {
 		if (nextState > 0) {
 			changeState(nextState);
 		}
-	} else if (noDataYet) { //retry sending message
+	} else if (noDataYet) { //retry sending message until we a response
 		if (nextState > 0) {
 			changeState(nextState);
 		} else {
@@ -364,22 +373,16 @@ void setup()
 
 	//setup mailboxes
 
-	Can0.watchFor(ECU_RESPONSE_ID1, ECU_RESPONSE_ID2);
-	//ALLOWALL FILTER
-	/*
 	int filter;
 	//extended
 	for (filter = 0; filter < 3; filter++) {
-	Can0.setRXFilter(filter, 0, 0, true);
-	}  
-	//standard
-	for (int filter = 3; filter < 7; filter++) {
-	Can0.setRXFilter(filter, 0, 0, false);
-	}*/
+		Can0.setRXFilter(filter, 0, 0, false);
+		Can1.setRXFilter(filter, 0, 0, false);
+	}
 
 	digitalWrite(DS6, HIGH);
 
-	Serial.println("waiting to send data for 5000ms");
+	Serial.println("waiting to send data for 3000ms");
 	delay(3000);
 	digitalWrite(DS6, LOW);
 
